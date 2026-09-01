@@ -1,0 +1,10 @@
+[project]
+name = "churn"
+version = "0.1.0"
+description = "Projeto modular para treinamento de um modelo de previsão de churn"
+requires-python = ">=3.12,<3.13"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+python_files = ["teste_*.py"]
+testpaths = ["tests"]
