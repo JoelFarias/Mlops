@@ -34,6 +34,59 @@ python -m churn.treinar
 
 O treinamento grava `modelo_final_v3_ok.pkl` na raiz do projeto.
 
+## Treino/tuning, registro e seleção para deploy
+
+O fluxo MLflow usa o CSV real, valida o contrato Pandera e divide os dados
+em treino (60%), validação (20%) e teste (20%), com estratificação e seed 42.
+O comando legado `churn.treinar` continua disponível; o fluxo abaixo inclui
+o pré-processamento no modelo para permitir inferência com as colunas do CSV.
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m churn.experimentos
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+
+Execute na raiz do projeto. Abra http://localhost:5000 e o experimento
+`churn-tuning`. Cada busca contém nove runs: Random Forest com 100, 200 ou 500
+árvores e profundidade livre, 8 ou 16. O encoder e os imputadores são ajustados
+somente no treino. Cada run armazena parâmetros, métricas de validação, hash
+SHA-256 do CSV, commit Git e o pipeline completo com assinatura e exemplo.
+
+A maior `validation_roc_auc` escolhe o vencedor **dessa busca**; em empate,
+vence a primeira configuração na ordem do grid. Apenas o vencedor é avaliado
+no teste. Se `test_roc_auc >= 0.80`, uma versão é registrada como `churn` e
+recebe o alias `champion`. Caso contrário, nenhuma versão é registrada e o
+alias anterior é preservado. O relatório `selecao.json` fica no run da busca.
+Esse gate é um mínimo de qualidade; não compara com um champion anterior.
+Os resultados de buscas diferentes não são misturados com runs sintéticos.
+
+Opções: `--dados caminho.csv`, `--limiar 0.80`, `--experimento churn-tuning`,
+`--nome-modelo churn` e `--tracking-uri sqlite:///mlflow.db`.
+Também é possível configurar `MLFLOW_TRACKING_URI`; sem configuração, o banco
+é `mlflow.db` na raiz deste projeto. Tracking e Registry usam o mesmo backend.
+
+Para consumir o modelo selecionado, use o mesmo tracking URI do treinamento:
+
+```python
+import mlflow
+import pandas as pd
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+modelo = mlflow.pyfunc.load_model("models:/churn@champion")
+entrada = pd.read_csv("data/raw/churn.csv", na_values=[" "])
+entrada = entrada.drop(columns=["customerID", "Churn"])
+previsoes = modelo.predict(entrada.head())  # 0 = No, 1 = Yes
+```
+
+O pacote inclui limpeza de `TotalCharges`, criação de `gasto_por_mes`,
+imputação e codificação de categorias (inclusive categorias novas).
+O alias identifica a versão escolhida para deploy; o comando não publica uma
+API. Um serviço já em execução precisa recarregar o modelo para adotar uma
+nova versão. Para fixar uma versão, use `models:/churn/1` (substitua `1`).
+Referências: [MLflow Models](https://www.mlflow.org/docs/latest/model/) e
+[Model Registry](https://mlflow.org/docs/latest/ml/model-registry/tutorial).
+
 ## Testes
 
 ```powershell

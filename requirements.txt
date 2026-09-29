@@ -1,7 +1,9 @@
 annotated-types==0.8.0
 colorama==0.4.6
+dvc==3.67.1
 iniconfig==2.3.0
 joblib==1.5.3
+mlflow==3.16.0
 numpy==1.26.4
 packaging==26.3
 pandas==2.2.3

@@ -5,3 +5,7 @@ __pycache__/
 data/
 *.pkl
 .env
+mlflow.db*
+mlartifacts/
+mlruns/
+mlflow-server.*.log

@@ -5,3 +5,7 @@ __pycache__
 tests
 data
 *.pkl
+mlflow.db*
+mlartifacts
+mlruns
+mlflow-server.*.log
