@@ -136,8 +136,11 @@ releases e as imagens anteriores são preservadas para permitir recuperação.
 
 Os containers rodam como usuário sem privilégios, com filesystem somente para
 leitura, capacidades removidas e limites de CPU, memória e processos. O Nginx
-mantém TLS 1.2/1.3, limita 10 requisições/s por IP com burst de 50, até 20
-conexões por IP e até 50 conexões simultâneas no proxy. Mensagens WebSocket
+mantém TLS 1.2/1.3, limita 10 requisições dinâmicas/s por IP com burst de 50,
+até 20 conexões dinâmicas por IP e até 50 conexões dinâmicas simultâneas.
+Arquivos estáticos usam limite separado de 100 requisições/s com burst de 300
+e cache de um ano, permitindo que o navegador carregue os módulos em paralelo.
+Mensagens WebSocket
 compartilham a conexão; o limite HTTP não conta cada mensagem de inferência.
 Os limites de recursos dos containers reduzem o impacto de sobrecarga, mas
 não substituem proteção contra DDoS volumétrico.
