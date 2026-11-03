@@ -1,0 +1,12 @@
+[Unit]
+Description=Verifica a renovacao do certificado de churn a cada 12 horas
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=12h
+RandomizedDelaySec=5min
+Persistent=true
+Unit=churn-https.service
+
+[Install]
+WantedBy=timers.target

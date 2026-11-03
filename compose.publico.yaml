@@ -1,0 +1,27 @@
+# Acesso externo exclusivamente pelo Nginx/HTTPS instalado na EC2.
+services:
+  backend:
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      RECARGA_MODELO_HABILITADA: "false"
+  frontend:
+    mem_limit: 768m
+    cpus: 1.0
+    environment:
+      CHURN_MODO_PUBLICO: "true"
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      - src/churn/frontend/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+      - --server.enableXsrfProtection=true
+      - --server.enableCORS=true
+      - --server.maxMessageSize=1
+      - --browser.serverAddress=${CHURN_ENDERECO_PUBLICO:-localhost}
+      - --browser.serverPort=443

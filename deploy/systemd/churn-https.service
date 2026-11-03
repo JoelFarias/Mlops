@@ -1,0 +1,9 @@
+[Unit]
+Description=Renovacao do certificado HTTPS da demonstracao de churn
+After=docker.service nginx.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/churn-renovar-https
+TimeoutStartSec=600

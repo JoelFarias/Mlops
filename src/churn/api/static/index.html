@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API de Churn — FastAPI</title>
+  <style>
+    :root {
+      --verde: #009688;
+      --verde-escuro: #00796b;
+      --texto: #1f2933;
+      --texto-suave: #52606d;
+      --borda: #d9e2ec;
+      --fundo: #eef3f1;
+      --branco: #ffffff;
+      --risco: #c53030;
+      --seguro: #2f855a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: linear-gradient(180deg, #e3efec 0%, var(--fundo) 280px);
+      color: var(--texto);
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    header { margin-bottom: 24px; }
+
+    .marca {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--verde);
+      color: var(--branco);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 10px 0 4px;
+      font-size: clamp(1.7rem, 4vw, 2.3rem);
+      line-height: 1.15;
+    }
+
+    .subtitulo {
+      margin: 0;
+      color: var(--texto-suave);
+      max-width: 680px;
+    }
+
+    form, .resultado {
+      background: var(--branco);
+      border: 1px solid var(--borda);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 41, 51, 0.06);
+    }
+
+    form { padding: 22px; }
+
+    fieldset {
+      border: 0;
+      padding: 0;
+      margin: 0 0 22px;
+    }
+
+    fieldset:last-of-type { margin-bottom: 8px; }
+
+    legend {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--verde-escuro);
+      margin-bottom: 10px;
+    }
+
+    .grade {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px 16px;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--texto-suave);
+    }
+
+    select, input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--borda);
+      border-radius: 8px;
+      background: #fbfdfc;
+      color: var(--texto);
+      font: inherit;
+      font-weight: 400;
+    }
+
+    select:focus, input:focus {
+      outline: 2px solid rgba(0, 150, 136, 0.35);
+      border-color: var(--verde);
+    }
+
+    .acoes {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 9px;
+      padding: 12px 22px;
+      background: var(--verde);
+      color: var(--branco);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    button:hover { background: var(--verde-escuro); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    .status { font-size: 0.9rem; color: var(--texto-suave); }
+    .status.erro { color: var(--risco); font-weight: 600; }
+
+    .resultado {
+      margin-top: 22px;
+      padding: 22px;
+      border-left: 6px solid var(--borda);
+    }
+
+    .resultado[hidden] { display: none; }
+    .resultado.risco { border-left-color: var(--risco); }
+    .resultado.seguro { border-left-color: var(--seguro); }
+
+    .resultado-topo {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .resultado h2 { margin: 0; font-size: 1.1rem; }
+
+    .classe { font-size: 1.15rem; font-weight: 800; }
+    .risco .classe { color: var(--risco); }
+    .seguro .classe { color: var(--seguro); }
+
+    .barra {
+      height: 12px;
+      margin: 16px 0 10px;
+      border-radius: 999px;
+      background: #e4ebe8;
+      overflow: hidden;
+    }
+
+    #barra {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #38a169, #d69e2e, #c53030);
+      transition: width 0.35s ease;
+    }
+
+    .probabilidade {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 800;
+    }
+
+    .legenda {
+      margin: 4px 0 0;
+      color: var(--texto-suave);
+      font-size: 0.88rem;
+    }
+
+    details { margin-top: 16px; }
+    summary { cursor: pointer; color: var(--verde-escuro); font-weight: 600; }
+    pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #f4f7f6;
+      font-size: 0.82rem;
+    }
+
+    footer {
+      margin-top: 26px;
+      color: var(--texto-suave);
+      font-size: 0.86rem;
+    }
+
+    footer a { color: var(--verde-escuro); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="marca">FastAPI</span>
+      <h1>Previsão de churn</h1>
+      <p class="subtitulo">
+        Preencha os dados do cliente. A página envia um <code>POST /prever</code>
+        e mostra a classe e a probabilidade estimada pelo modelo
+        <code>churn@champion</code>.
+      </p>
+    </header>
+
+    <form id="formulario" autocomplete="off">
+      <fieldset>
+        <legend>Dados do cliente</legend>
+        <div class="grade">
+          <label>Gênero
+            <select name="gender" required>
+              <option value="Female" selected>Feminino</option>
+              <option value="Male">Masculino</option>
+            </select>
+          </label>
+          <label>Idoso
+            <select name="SeniorCitizen" required>
+              <option value="0" selected>Não</option>
+              <option value="1">Sim</option>
+            </select>
+          </label>
+          <label>Parceiro(a)
+            <select name="Partner" required>
+              <option value="Yes" selected>Sim</option>
+              <option value="No">Não</option>
+            </select>
+          </label>
+          <label>Dependentes
+            <select name="Dependents" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+            </select>
+          </label>
+          <label>Meses de casa (tenure)
+            <input type="number" name="tenure" min="0" max="72" step="1" value="1" required>
+          </label>
+          <label>Telefone
+            <select name="PhoneService" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+            </select>
+          </label>
+          <label>Múltiplas linhas
+            <select name="MultipleLines" required>
+              <option value="No phone service" selected>Sem serviço telefônico</option>
+              <option value="No">Não</option>
+              <option value="Yes">Sim</option>
+            </select>
+          </label>
+          <label>Internet
+            <select name="InternetService" required>
+              <option value="DSL" selected>DSL</option>
+              <option value="Fiber optic">Fibra óptica</option>
+              <option value="No">Não</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Serviços</legend>
+        <div class="grade">
+          <label>Segurança online
+            <select name="OnlineSecurity" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+          <label>Backup online
+            <select name="OnlineBackup" required>
+              <option value="Yes" selected>Sim</option>
+              <option value="No">Não</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+          <label>Proteção de dispositivo
+            <select name="DeviceProtection" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+          <label>Suporte técnico
+            <select name="TechSupport" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+          <label>Streaming TV
+            <select name="StreamingTV" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+          <label>Streaming de filmes
+            <select name="StreamingMovies" required>
+              <option value="No" selected>Não</option>
+              <option value="Yes">Sim</option>
+              <option value="No internet service">Sem serviço de internet</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cobrança</legend>
+        <div class="grade">
+          <label>Contrato
+            <select name="Contract" required>
+              <option value="Month-to-month" selected>Mensal</option>
+              <option value="One year">Um ano</option>
+              <option value="Two year">Dois anos</option>
+            </select>
+          </label>
+          <label>Cobrança sem papel
+            <select name="PaperlessBilling" required>
+              <option value="Yes" selected>Sim</option>
+              <option value="No">Não</option>
+            </select>
+          </label>
+          <label>Forma de pagamento
+            <select name="PaymentMethod" required>
+              <option value="Electronic check" selected>Cheque eletrônico</option>
+              <option value="Mailed check">Cheque por correio</option>
+              <option value="Bank transfer (automatic)">Transferência bancária (automática)</option>
+              <option value="Credit card (automatic)">Cartão de crédito (automático)</option>
+            </select>
+          </label>
+          <label>Cobrança mensal (US$)
+            <input type="number" name="MonthlyCharges" min="18" max="120" step="0.01" value="29.85" required>
+          </label>
+          <label>Total cobrado (US$)
+            <input type="number" name="TotalCharges" min="0" step="0.01" value="29.85" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="acoes">
+        <button type="submit" id="botao">Calcular risco</button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+    </form>
+
+    <section id="resultado" class="resultado" hidden aria-live="polite">
+      <div class="resultado-topo">
+        <h2>Resultado</h2>
+        <span id="classe" class="classe"></span>
+      </div>
+      <div class="barra"><div id="barra"></div></div>
+      <p id="probabilidade" class="probabilidade"></p>
+      <p id="limiar" class="legenda"></p>
+      <details>
+        <summary>Ver resposta JSON</summary>
+        <pre id="json"></pre>
+      </details>
+    </section>
+
+    <footer>
+      Documentação automática: <a href="/docs">/docs</a> ·
+      Schema: <a href="/openapi.json">/openapi.json</a> ·
+      Saúde: <a href="/saude">/saude</a>
+    </footer>
+  </main>
+
+  <script>
+    const formulario = document.getElementById("formulario");
+    const botao = document.getElementById("botao");
+    const status = document.getElementById("status");
+    const camposNumericos = ["SeniorCitizen", "tenure", "MonthlyCharges", "TotalCharges"];
+
+    formulario.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      status.textContent = "Calculando...";
+      status.className = "status";
+      botao.disabled = true;
+
+      const dados = Object.fromEntries(new FormData(formulario).entries());
+      for (const campo of camposNumericos) {
+        dados[campo] = Number(dados[campo]);
+      }
+
+      try {
+        const resposta = await fetch("/prever", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dados),
+        });
+        const corpo = await resposta.json();
+
+        if (!resposta.ok) {
+          const detalhe = typeof corpo.detail === "string"
+            ? corpo.detail
+            : "Dados inválidos. Confira os campos e tente novamente.";
+          throw new Error(detalhe);
+        }
+
+        mostrarResultado(corpo);
+        status.textContent = "";
+      } catch (erro) {
+        status.textContent = erro.message;
+        status.className = "status erro";
+      } finally {
+        botao.disabled = false;
+      }
+    });
+
+    function mostrarResultado(corpo) {
+      const risco = corpo.churn === "Yes";
+      const painel = document.getElementById("resultado");
+      const percentual = (corpo.probabilidade * 100).toFixed(1);
+
+      painel.hidden = false;
+      painel.className = "resultado " + (risco ? "risco" : "seguro");
+      document.getElementById("classe").textContent = risco
+        ? "SIM — risco de churn"
+        : "NÃO — cliente propenso a ficar";
+      document.getElementById("probabilidade").textContent =
+        `Probabilidade de churn: ${percentual}%`;
+      document.getElementById("limiar").textContent =
+        `Limiar de decisão: ${(corpo.limiar * 100).toFixed(0)}%`;
+      document.getElementById("barra").style.width =
+        `${Math.max(0, Math.min(100, corpo.probabilidade * 100))}%`;
+      document.getElementById("json").textContent =
+        JSON.stringify(corpo, null, 2);
+      painel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+FROM python:3.12-slim
+
+WORKDIR /aplicacao
+
+COPY requirements.runtime.txt .
+RUN pip install --no-cache-dir --disable-pip-version-check \
+    --root-user-action=ignore -r requirements.runtime.txt
+
+COPY src ./src
+COPY scripts/verificar-deploy.py ./scripts/verificar-deploy.py
+COPY .streamlit/config.toml ./.streamlit/config.toml
+COPY artifacts/modelo ./artifacts/modelo
+
+RUN useradd --create-home --uid 10001 churn
+USER churn
+
+ENV PYTHONPATH=/aplicacao/src \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MODELO_URI=/aplicacao/artifacts/modelo \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1
+
+EXPOSE 8000 8501
+
+CMD ["python", "-m", "uvicorn", "churn.api.aplicacao:app", \
+     "--host", "0.0.0.0", "--port", "8000"]

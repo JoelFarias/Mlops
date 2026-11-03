@@ -1,0 +1,79 @@
+name: churn
+
+x-aplicacao: &aplicacao
+  image: ${CHURN_IMAGEM:-churn:local}
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=128m
+  environment: &ambiente
+    MODELO_URI: /aplicacao/artifacts/modelo
+    LIMIAR_CHURN: ${LIMIAR_CHURN:-0.5}
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  backend:
+    <<: *aplicacao
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "127.0.0.1:${CHURN_PORTA_API:-8000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/pronto', timeout=5)"
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 60s
+
+  frontend:
+    <<: *aplicacao
+    pull_policy: never
+    command:
+      - python
+      - -m
+      - streamlit
+      - run
+      - src/churn/frontend/app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    environment:
+      <<: *ambiente
+      CHURN_API_URL: http://backend:8000
+      CHURN_MODO_INFERENCIA: api
+    ports:
+      - "127.0.0.1:${CHURN_PORTA_FRONTEND:-8501}:8501"
+    volumes:
+      - type: bind
+        source: ./data/raw/churn.csv
+        target: /aplicacao/data/raw/churn.csv
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=5)"
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 30s

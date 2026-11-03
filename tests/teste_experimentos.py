@@ -7,6 +7,9 @@ import pytest
 from mlflow.tracking import MlflowClient
 
 from churn import experimentos
+from churn.api.servico import carregar_modelo
+from churn.configuracao import Configuracao
+from churn.exportar import exportar_modelo
 from churn.pipeline import criar_pipeline
 
 
@@ -74,6 +77,26 @@ def teste_tuning_registro_recarga_e_gate(tmp_path, monkeypatch):
         assert not reprovado["promovido"]
         assert client.get_model_version_by_alias("churn", "champion").version == versao.version
         assert len(client.search_model_versions("name='churn'")) == 1
+
+        # O pacote precisa funcionar na EC2 sem consultar o registry Windows.
+        destino = exportar_modelo(
+            tmp_path / "portatil", Configuracao(mlflow_tracking_uri=uri)
+        )
+        with pytest.raises(FileExistsError):
+            exportar_modelo(destino, Configuracao(mlflow_tracking_uri=uri))
+
+        def registry_indisponivel(*args, **kwargs):
+            raise AssertionError("O deploy portátil não deve acessar o registry.")
+
+        with monkeypatch.context() as isolado:
+            isolado.setattr(mlflow, "set_tracking_uri", registry_indisponivel)
+            isolado.setattr(mlflow, "set_registry_uri", registry_indisponivel)
+            servico = carregar_modelo(Configuracao(modelo_uri=str(destino)))
+            assert servico.versao == str(versao.version)
+            assert servico.alias == "champion"
+            np.testing.assert_allclose(
+                servico.modelo.predict_proba(entrada), original.predict_proba(entrada)
+            )
     finally:
         mlflow.set_tracking_uri(tracking_anterior)
         mlflow.set_registry_uri(registry_anterior)

@@ -1,5 +1,6 @@
 .git
 .venv
+venv
 __pycache__
 .pytest_cache
 tests
@@ -9,3 +10,15 @@ mlflow.db*
 mlartifacts
 mlruns
 mlflow-server.*.log
+artifacts
+!artifacts/modelo
+!artifacts/modelo/**
+.env
+.env.*
+*.pem
+*.key
+.aws
+.ssh
+.vscode
+*.pptx
+*.pdf

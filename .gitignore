@@ -1,4 +1,5 @@
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -9,3 +10,7 @@ mlflow.db*
 mlartifacts/
 mlruns/
 mlflow-server.*.log
+artifacts/
+*.pem
+*.key
+CHAVE_EC2/
