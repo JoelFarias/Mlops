@@ -31,7 +31,8 @@ if ! command -v docker >/dev/null; then
         opcoes_apt=(-o "Acquire::http::Proxy=$proxy" -o "Acquire::https::Proxy=$proxy")
     fi
     apt-get "${opcoes_apt[@]}" -o APT::Update::Error-Mode=any update
-    DEBIAN_FRONTEND=noninteractive apt-get "${opcoes_apt[@]}" install -y +        --no-install-recommends docker.io
+    DEBIAN_FRONTEND=noninteractive apt-get "${opcoes_apt[@]}" install -y \
+        --no-install-recommends docker.io
 fi
 systemctl enable --now docker
 if ! docker image inspect "$imagem" >/dev/null 2>&1; then
@@ -46,7 +47,9 @@ for segredo in admin-senha leitura-senha; do
     fi
 done
 if [[ ! -e "$pasta_config/server.crt" && ! -e "$pasta_config/server.key" ]]; then
-    openssl req -x509 -newkey rsa:2048 -sha256 -noenc -days 365 +        -subj /CN=churn-postgres -addext "subjectAltName=IP:$ip_banco" +        -keyout "$pasta_config/server.key" -out "$pasta_config/server.crt"
+    openssl req -x509 -newkey rsa:2048 -sha256 -noenc -days 365 \
+        -subj /CN=churn-postgres -addext "subjectAltName=IP:$ip_banco" \
+        -keyout "$pasta_config/server.key" -out "$pasta_config/server.crt"
 fi
 test -s "$pasta_config/server.key"
 openssl verify -purpose sslserver -verify_ip "$ip_banco" \
@@ -54,7 +57,8 @@ openssl verify -purpose sslserver -verify_ip "$ip_banco" \
 postgres_uid=$(docker run --rm --network none --entrypoint id "$imagem" -u postgres)
 chown "$postgres_uid" "$pasta_config/server.key"
 chmod 0600 "$pasta_config/server.key"
-printf 'local all postgres peer\nhostssl churn churn_leitura %s/32 scram-sha-256\n' +    "$ip_app" >"$pasta_config/pg_hba.conf"
+printf 'local all postgres peer\nhostssl churn churn_leitura %s/32 scram-sha-256\n' \
+    "$ip_app" >"$pasta_config/pg_hba.conf"
 chmod 0644 "$pasta_config/server.crt" "$pasta_config/pg_hba.conf"
 
 if docker container inspect "$container" >/dev/null 2>&1; then
@@ -62,7 +66,19 @@ if docker container inspect "$container" >/dev/null 2>&1; then
     test "$servico" = postgres-ec2
     docker start "$container" >/dev/null
 else
-    docker run --detach --name "$container" --restart unless-stopped +        --label churn.servico=postgres-ec2 --memory 384m +        --log-opt max-size=5m --log-opt max-file=3 +        --publish "$ip_banco:5432:5432" +        --mount type=volume,source=churn-postgres-dados,target=/var/lib/postgresql/data +        --mount "type=bind,source=$pasta_config/admin-senha,target=/run/secrets/postgres_admin,readonly" +        --mount "type=bind,source=$pasta_config/server.crt,target=/run/postgres/server.crt,readonly" +        --mount "type=bind,source=$pasta_config/server.key,target=/run/postgres/server.key,readonly" +        --mount "type=bind,source=$pasta_config/pg_hba.conf,target=/run/postgres/pg_hba.conf,readonly" +        --env POSTGRES_PASSWORD_FILE=/run/secrets/postgres_admin "$imagem" +        -c ssl=on -c ssl_cert_file=/run/postgres/server.crt +        -c ssl_key_file=/run/postgres/server.key -c hba_file=/run/postgres/pg_hba.conf +        -c shared_buffers=64MB -c max_connections=20 >/dev/null
+    docker run --detach --name "$container" --restart unless-stopped \
+        --label churn.servico=postgres-ec2 --memory 384m \
+        --log-opt max-size=5m --log-opt max-file=3 \
+        --publish "$ip_banco:5432:5432" \
+        --mount type=volume,source=churn-postgres-dados,target=/var/lib/postgresql/data \
+        --mount "type=bind,source=$pasta_config/admin-senha,target=/run/secrets/postgres_admin,readonly" \
+        --mount "type=bind,source=$pasta_config/server.crt,target=/run/postgres/server.crt,readonly" \
+        --mount "type=bind,source=$pasta_config/server.key,target=/run/postgres/server.key,readonly" \
+        --mount "type=bind,source=$pasta_config/pg_hba.conf,target=/run/postgres/pg_hba.conf,readonly" \
+        --env POSTGRES_PASSWORD_FILE=/run/secrets/postgres_admin "$imagem" \
+        -c ssl=on -c ssl_cert_file=/run/postgres/server.crt \
+        -c ssl_key_file=/run/postgres/server.key -c hba_file=/run/postgres/pg_hba.conf \
+        -c shared_buffers=64MB -c max_connections=20 >/dev/null
 fi
 
 for tentativa in {1..60}; do
