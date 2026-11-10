@@ -1,299 +1,168 @@
-# Projeto de churn — MLOps
+# Previsão de churn com MLOps
 
-Projeto modular para treinamento do modelo de previsão de churn usado nos
-encontros iniciais da disciplina de MLOps.
+Projeto de classificação que estima a probabilidade de um cliente cancelar o
+serviço. O fluxo cobre validação de dados, treinamento, seleção de modelo no
+MLflow e inferência online com FastAPI e Streamlit.
 
-O comportamento do script inicial foi preservado. A única correção funcional é
-a substituição do caminho absoluto do CSV por caminhos construídos com
-`pathlib.Path` e centralizados em uma configuração Pydantic.
+**[Abrir a demonstração pública](https://3.148.175.181/)**
 
-## Estrutura
+Busque pelo código `1069-XAIEM` ou `0902-XKXPN` e clique em **Buscar e prever**.
 
-```text
-src/churn/
-├── api/
-│   ├── aplicacao.py
-│   ├── esquemas.py
-│   ├── servico.py
-│   └── static/
-├── frontend/
-│   ├── app.py
-│   ├── dados.py
-│   └── inferencia.py
-├── avaliacao.py
-├── caracteristicas.py
-├── configuracao.py
-├── dados.py
-├── modelo.py
-└── treinar.py
+[Arquitetura](#arquitetura) · [Executar localmente](#executar-localmente) ·
+[Treinamento e MLflow](#treinamento-e-mlflow) · [API](#api) ·
+[Deploy na AWS](#deploy-na-aws) · [Testes](#testes)
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    visitante["Navegador"] -->|HTTPS| proxy
+    subgraph aplicacao["EC2 da aplicação"]
+        proxy["Nginx"] --> frontend["Streamlit"]
+        frontend --> api["FastAPI"]
+        api --> modelo["Modelo exportado"]
+    end
+    subgraph banco["EC2 privada"]
+        postgres[("PostgreSQL")]
+    end
+    api -->|Consulta por TLS na VPC| postgres
 ```
 
-O arquivo `train_churn.py` permanece no repositório como versão inicial para
-comparação. O dataset fica em `data/raw/churn.csv` e não é versionado pelo Git.
+Na AWS, Streamlit e FastAPI rodam em dois contêineres da **mesma imagem
+Docker**. O Nginx publica a interface, e o FastAPI busca os dados do cliente
+no PostgreSQL com uma conta de leitura. O modelo exportado é carregado no
+início do processo e usado a cada previsão.
 
-## Ambiente local
+O Compose local monta o CSV no frontend para a busca por código. O overlay
+`compose.postgres.yaml` ativa a busca pela API e remove a montagem do CSV.
 
-No PowerShell, com o ambiente virtual ativo:
+## Executar localmente
+
+Use Python 3.12, Git e Docker com Compose v2. Abra o PowerShell para clonar
+o projeto e executar os comandos.
+
+### 1. Preparar o ambiente e o dataset
 
 ```powershell
-python -m pip install -r requirements.txt
+git clone https://github.com/JoelFarias/Mlops.git
+cd Mlops
+
+py -3.12 -m venv .venv
+$churnPython = ".\.venv\Scripts\python.exe"
+& $churnPython -m pip install -r requirements.txt
 $env:PYTHONPATH = "src"
-python -m churn.treinar
 ```
 
-O treinamento grava `modelo_final_v3_ok.pkl` na raiz do projeto.
-
-## Treino/tuning, registro e seleção para deploy
-
-O fluxo MLflow usa o CSV real, valida o contrato Pandera e divide os dados
-em treino (60%), validação (20%) e teste (20%), com estratificação e seed 42.
-O comando legado `churn.treinar` continua disponível; o fluxo abaixo inclui
-o pré-processamento no modelo para permitir inferência com as colunas do CSV.
+Em um clone novo, baixe o CSV com 7.043 registros para `data/raw/churn.csv`.
+[Dataset Telco Customer Churn da IBM](https://github.com/IBM/telco-customer-churn-on-icp4d/blob/d5371f5d83a446ad5673cbcca3b814b926491f8a/data/Telco-Customer-Churn.csv)
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m churn.experimentos
-mlflow ui --backend-store-uri sqlite:///mlflow.db
+New-Item -ItemType Directory -Path data/raw -Force | Out-Null
+$churnDataset = "https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/d5371f5d83a446ad5673cbcca3b814b926491f8a/data/Telco-Customer-Churn.csv"
+Invoke-WebRequest -Uri $churnDataset -OutFile data/raw/churn.csv
 ```
 
-Execute na raiz do projeto. Abra http://localhost:5000 e o experimento
-`churn-tuning`. Cada busca contém nove runs: Random Forest com 100, 200 ou 500
-árvores e profundidade livre, 8 ou 16. O encoder e os imputadores são ajustados
-somente no treino. Cada run armazena parâmetros, métricas de validação, hash
-SHA-256 do CSV, commit Git e o pipeline completo com assinatura e exemplo.
-
-A maior `validation_roc_auc` escolhe o vencedor **dessa busca**; em empate,
-vence a primeira configuração na ordem do grid. Apenas o vencedor é avaliado
-no teste. Se `test_roc_auc >= 0.80`, uma versão é registrada como `churn` e
-recebe o alias `champion`. Caso contrário, nenhuma versão é registrada e o
-alias anterior é preservado. O relatório `selecao.json` fica no run da busca.
-Esse gate é um mínimo de qualidade; não compara com um champion anterior.
-Os resultados de buscas diferentes não são misturados com runs sintéticos.
-
-Opções: `--dados caminho.csv`, `--limiar 0.80`, `--experimento churn-tuning`,
-`--nome-modelo churn` e `--tracking-uri sqlite:///mlflow.db`.
-Também é possível configurar `MLFLOW_TRACKING_URI`; sem configuração, o banco
-é `mlflow.db` na raiz deste projeto. Tracking e Registry usam o mesmo backend.
-
-Para consumir o modelo selecionado, use o mesmo tracking URI do treinamento:
-
-```python
-import mlflow
-import pandas as pd
-
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
-modelo = mlflow.pyfunc.load_model("models:/churn@champion")
-entrada = pd.read_csv("data/raw/churn.csv", na_values=[" "])
-entrada = entrada.drop(columns=["customerID", "Churn"])
-previsoes = modelo.predict(entrada.head())  # 0 = No, 1 = Yes
-```
-
-O pacote inclui limpeza de `TotalCharges`, criação de `gasto_por_mes`,
-imputação e codificação de categorias (inclusive categorias novas).
-O alias identifica a versão escolhida para deploy; o comando não publica uma
-API. Para adotar uma nova versão sem reiniciar o processo, use
-`POST /modelo/recarregar` (ou os botões de recarga do frontend).
-Para fixar uma versão, use `models:/churn/1` (substitua `1`).
-Referências: [MLflow Models](https://www.mlflow.org/docs/latest/model/) e
-[Model Registry](https://mlflow.org/docs/latest/ml/model-registry/tutorial).
-
-## API de inferência (FastAPI)
-
-A API carrega uma única vez, no startup, o modelo `churn@champion` do MLflow
-e expõe o contrato de entrada do CSV (sem `customerID` e sem `Churn`).
-
-| Rota | Método | Uso |
-| --- | --- | --- |
-| `/` | GET | formulário web para preencher e ver o resultado |
-| `/saude` | GET | processo no ar e modelo carregado |
-| `/pronto` | GET | retorna 200 somente com modelo carregado; caso contrário, 503 |
-| `/modelo` | GET | versão e alias em uso |
-| `/modelo/recarregar` | POST | recarrega o champion sem reiniciar |
-| `/prever` | POST | prediz um cliente |
-| `/docs` | GET | Swagger UI |
-
-Pré-requisito: ter rodado `python -m churn.experimentos`, para existir
-`mlflow.db` com o alias `champion`.
+### 2. Treinar, exportar e iniciar a aplicação
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m uvicorn churn.api.aplicacao:app --reload
-```
-
-Abra http://127.0.0.1:8000/ para o formulário, ou
-http://127.0.0.1:8000/docs para o Swagger. No formulário, preencha os dados
-e clique em **Calcular risco**: a página chama `POST /prever` e exibe a
-classe, a probabilidade e a resposta JSON.
-
-Ou via HTTP:
-
-```powershell
-$corpo = @{
-    gender = "Female"; SeniorCitizen = 0; Partner = "Yes"; Dependents = "No"
-    tenure = 12; PhoneService = "Yes"; MultipleLines = "No"
-    InternetService = "Fiber optic"; OnlineSecurity = "No"
-    OnlineBackup = "Yes"; DeviceProtection = "No"; TechSupport = "No"
-    StreamingTV = "Yes"; StreamingMovies = "No"
-    Contract = "Month-to-month"; PaperlessBilling = "Yes"
-    PaymentMethod = "Electronic check"; MonthlyCharges = 70.5
-    TotalCharges = 845.5
-} | ConvertTo-Json
-
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/prever `
-    -ContentType "application/json" -Body $corpo
-```
-
-A resposta traz `churn` (`Yes`/`No`), `probabilidade` e o `limiar` usado.
-`422` significa contrato violado; `503`, modelo não carregado.
-
-Os testes da API não dependem do MLflow:
-
-```powershell
-python -m pytest tests/teste_api.py -q
-```
-
-## Frontend Streamlit (inferência online)
-
-Abra outro terminal:
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m streamlit run src/churn/frontend/app.py
-```
-
-Abra http://localhost:8501. O frontend tem dois modos, escolhidos na barra
-lateral:
-
-- **Modelo local (Streamlit)** — padrão. O próprio frontend carrega o alias
-  `churn@champion` do MLflow, executa `predict_proba` e aplica o limiar. O
-  modelo é carregado uma vez no processo do Streamlit e fica em cache; o botão
-  **Recarregar modelo local** limpa o cache e carrega novamente.
-- **API FastAPI** — o frontend consulta `GET /saude` e `GET /modelo`, envia os
-  19 campos para `POST /prever` e recebe a predição pronta. O botão
-  **Recarregar modelo na API** chama `POST /modelo/recarregar`.
-
-Nos dois modos, o cliente é buscado pelo `customerID` em `data/raw/churn.csv`,
-uma tabela com informações básicas é exibida e o resultado mostra classe,
-probabilidade e limiar. A URL da API pode ser alterada na barra lateral; o
-padrão é `http://127.0.0.1:8000` (ou a variável `CHURN_API_URL`). No modo local
-a API pode até estar desligada; é o Streamlit que executa a inferência.
-
-Exemplos de códigos para testar: `1069-XAIEM` (risco alto), `7590-VHVEG`
-(perto do limiar) e `0902-XKXPN` (risco baixo).
-
-### Docker
-
-O frontend Streamlit e o backend FastAPI usam **a mesma imagem**, construída
-com `Dockerfile.api`, em dois containers. O frontend inicia no modo API e
-chama `http://backend:8000` pela rede interna do Compose.
-
-Exporte o champion treinado no Windows antes do build. Isso inclui os artefatos
-na imagem e elimina a dependência dos caminhos absolutos do `mlflow.db`:
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m churn.exportar
+& $churnPython -m churn.experimentos
+& $churnPython -m churn.exportar
 docker compose build backend
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
 
-Abra http://127.0.0.1:8501 para o Streamlit ou http://127.0.0.1:8000/docs para
-a API. O CSV `data/raw/churn.csv` é montado somente para leitura no frontend;
-o modelo exportado fica em `artifacts/modelo`, dentro da imagem. O backend só
-é publicado no endereço local da máquina. O healthcheck exige modelo carregado
-antes de iniciar o frontend.
+Consulte um cliente no Streamlit ou teste as rotas no Swagger.
+[Streamlit local](http://127.0.0.1:8501/) · [Swagger local](http://127.0.0.1:8000/docs)
 
-Valide a inferência e acompanhe os serviços:
+Verifique a prontidão do modelo e execute uma previsão de teste.
 
 ```powershell
 docker compose exec -T backend python scripts/verificar-deploy.py
-docker compose ps
-docker compose logs --tail 50
 ```
 
-O exportador fixa a versão selecionada pelo alias e não sobrescreve uma pasta
-existente. Para outra versão, use `python -m churn.exportar --destino <pasta>`
-e substitua a pasta de build `artifacts/modelo` após revisar o novo pacote.
-Com `MODELO_URI` definido, a recarga relê o pacote exportado; para atualizar o
-champion no deploy é necessário exportar novamente e reconstruir a imagem.
+Use `docker compose down` para parar os contêineres. Caso as portas locais
+estejam ocupadas, defina `CHURN_PORTA_API` e `CHURN_PORTA_FRONTEND` antes de
+subir o Compose.
 
-Configurações via ambiente: `MODELO_URI`, `MLFLOW_TRACKING_URI`, `NOME_MODELO`,
-`ALIAS_MODELO`, `LIMIAR_CHURN`, `CHURN_API_URL`, `CHURN_MODO_INFERENCIA`,
-`CHURN_IMAGEM`, `CHURN_PORTA_API`, `CHURN_PORTA_FRONTEND`, `CHURN_MODO_PUBLICO`,
-`CHURN_ENDERECO_PUBLICO` e `RECARGA_MODELO_HABILITADA`.
-Se as portas locais estiverem ocupadas, configure `CHURN_PORTA_API=18000`
-e `CHURN_PORTA_FRONTEND=18501` antes de subir os serviços.
-Sem `MODELO_URI`, o carregamento local mantém
-o comportamento de consultar o registry.
+<details>
+<summary>Executar a API e o Streamlit sem Docker</summary>
 
-O passo a passo de publicação está em [Deploy na EC2](docs/deploy-ec2.md).
-
-Para demonstração pública, o deploy usa `compose.publico.yaml` e Nginx com
-HTTPS no IP. O frontend permite consultas sem login; edição da URL da API,
-escolha de inferência local e recarga administrativa ficam desabilitadas.
-As portas 8000 e 8501 continuam restritas ao localhost. O proxy limita
-requisições e conexões, e um timer renova o certificado automaticamente.
-Use dados de exemplo nesse modo, pois qualquer visitante pode consultá-los.
-
-## Testes
+Depois do treinamento, rode a API na raiz do projeto.
 
 ```powershell
-python -m pytest -q
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m uvicorn churn.api.aplicacao:app --reload
 ```
 
-### Caso de dado quebrado
-
-O teste `teste_schema_coleta_todas_as_falhas_com_lazy_true` cria uma amostra
-temporária com quatro violações do contrato:
-
-- `tenure = 999`, acima do limite de 72;
-- `MonthlyCharges = 200`, acima do limite de 120;
-- `Contract = "Vitalicio"`, categoria não permitida;
-- `Churn = "Talvez"`, categoria não permitida.
-
-A chamada `ChurnSchema.validate(..., lazy=True)` interrompe o pipeline antes do
-treinamento e reúne as quatro violações em `SchemaErrors.failure_cases`. O CSV
-original não é modificado.
-
-Para executar somente esse caso:
+Em outro terminal, inicie o Streamlit.
 
 ```powershell
-python -m pytest tests/teste_dados.py::teste_schema_coleta_todas_as_falhas_com_lazy_true -v
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m streamlit run src/churn/frontend/app.py
 ```
 
-## Leitura — Data Pipeline
+Na barra lateral, escolha o modelo local do MLflow ou a API FastAPI. O modo
+API usa `http://127.0.0.1:8000` por padrão.
 
-A seção [Data: Data Engineering Pipelines](https://ml-ops.org/content/three-levels-of-ml-software#data-data-engineering-pipelines)
-organiza o pipeline em ingestão, exploração e validação, limpeza e divisão dos
-dados. O profiling produz metadados como tipos, faixas e quantidade de valores
-ausentes; a validação aplica regras para detectar erros; e a limpeza transforma
-os dados por meio de funções reproduzíveis. O projeto implementa esse fluxo em
-`carregar_dados`, `limpar_dados` e `ChurnSchema`.
+</details>
 
-## Docker
+## Treinamento e MLflow
 
-Construa a imagem:
+1. **Validar e dividir os dados.** O Pandera verifica o contrato do CSV. A
+   divisão estratificada usa 60% dos registros para treino, 20% para validação
+   e 20% para teste, com seed 42.
+2. **Comparar configurações.** A busca testa nove combinações de Random Forest,
+   com 100, 200 ou 500 árvores e profundidade livre, 8 ou 16. A maior ROC AUC
+   na validação seleciona o vencedor da busca.
+3. **Avaliar e registrar.** O vencedor é avaliado no conjunto de teste. Se
+   `test_roc_auc >= 0.80`, o MLflow registra a versão em `churn` e atribui o
+   alias `champion`. O relatório da seleção fica em `selecao.json` no run
+   principal.
+4. **Exportar.** `churn.exportar` fixa a versão do alias em `artifacts/modelo`.
+   O pacote inclui o pipeline de pré-processamento e o modelo usado na imagem
+   da aplicação. Para exportar outra versão, indique uma pasta nova com
+   `--destino`.
+
+O experimento que registrou `churn/1` obteve ROC AUC de **0,8425** no teste.
+O MLflow usa `mlflow.db` para Tracking e Registry. Os runs registram os
+parâmetros, as métricas, o hash do CSV e o commit Git. Abra a interface e
+selecione o experimento `churn-tuning`.
 
 ```powershell
-docker build -t churn-treino .
+.\.venv\Scripts\mlflow.exe ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-Execute o treinamento usando o dataset local como volume somente leitura:
+[Interface local do MLflow](http://127.0.0.1:5000/) · [Guia de MLflow](mlflow_guia.md)
 
-```powershell
-docker run --rm --mount "type=bind,source=$($PWD.Path)\data,target=/aplicacao/data,readonly" churn-treino
-```
+## API
 
-O comando executa o mesmo módulo `churn.treinar` dentro do contêiner.
+`POST /prever` recebe os 19 atributos do cliente e devolve a classe `churn`,
+a `probabilidade` e o `limiar` de decisão. O limiar padrão de inferência é
+0,50 e pode ser definido por `LIMIAR_CHURN`. [Contrato interativo no Swagger](http://127.0.0.1:8000/docs)
 
-## Imagem Docker do PostgreSQL
+| Método e rota | Função |
+| --- | --- |
+| `GET /` | Formulário local para enviar os atributos de um cliente |
+| `GET /saude` | Estado do processo e do modelo |
+| `GET /pronto` | Retorna 200 quando o modelo está carregado |
+| `GET /modelo` | Origem, versão e alias do modelo em uso |
+| `GET /clientes?codigo=1069-XAIEM` | Consulta por código com PostgreSQL configurado |
+| `POST /prever` | Calcula a probabilidade de churn |
+| `POST /modelo/recarregar` | Recarrega o modelo quando a operação está habilitada |
 
-A imagem `churn-postgres:1.0` inclui o CSV de exemplo e importa seus registros
-para `public.clientes` no banco `churn` na primeira inicialização com um volume
-vazio. O campo `"customerID"` é a chave primária.
+## Deploy na AWS
 
-Com `data/raw/churn.csv` na raiz do projeto, construa e exporte a imagem para
-Linux x86-64.
+O deploy usa duas instâncias Ubuntu na mesma VPC. A primeira recebe o pacote
+da aplicação com `scripts/deploy-ec2.ps1 -Publico -Postgres`. A segunda carrega
+a imagem do PostgreSQL com `scripts/iniciar-postgres-ec2.sh`. O banco usa
+IPv4 privado, e o certificado público do Nginx tem renovação automática.
+[Guia de configuração das duas EC2](docs/deploy-ec2.md#postgresql-em-uma-segunda-ec2)
+
+### Imagem do PostgreSQL
+
+O `Dockerfile.postgres` inclui o CSV e o importa para `public.clientes` no
+banco `churn` quando o volume é inicializado pela primeira vez. O campo
+`"customerID"` é a chave primária.
 
 ```powershell
 docker build --platform linux/amd64 -f Dockerfile.postgres -t churn-postgres:1.0 .
@@ -301,23 +170,52 @@ New-Item -ItemType Directory -Path artifacts -Force | Out-Null
 docker save -o artifacts/postgres-churn.tar churn-postgres:1.0
 ```
 
-Para usar o arquivo em outro Docker, carregue a imagem e inicie o contêiner.
-A senha é definida em tempo de execução e o volume preserva o banco entre
-execuções.
+Em outro host Docker, carregue a imagem com
+`docker load -i artifacts/postgres-churn.tar`. O volume
+`churn-postgres-dados` preserva os registros entre recriações do contêiner.
+
+<details>
+<summary>Conferir a importação local do CSV</summary>
 
 ```powershell
-docker load -i artifacts/postgres-churn.tar
-$env:POSTGRES_PASSWORD = [guid]::NewGuid().ToString('N')
+$env:POSTGRES_PASSWORD = [guid]::NewGuid().ToString("N")
 docker run -d --name churn-postgres --env POSTGRES_PASSWORD `
   --mount type=volume,source=churn-postgres-dados,target=/var/lib/postgresql/data `
   churn-postgres:1.0
 Remove-Item Env:POSTGRES_PASSWORD
 ```
 
-Depois que o PostgreSQL estiver pronto, consulte a tabela pelo próprio contêiner.
+Quando o PostgreSQL estiver pronto, confira a contagem de clientes.
 
 ```powershell
 docker exec churn-postgres psql -U postgres -d churn -c 'SELECT count(*) FROM public.clientes;'
 ```
 
-[Conectar a aplicação ao PostgreSQL em uma segunda EC2](docs/deploy-ec2.md#postgresql-em-uma-segunda-ec2)
+</details>
+
+## Testes
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+Os testes cobrem contrato dos dados, engenharia de atributos, seleção do modelo,
+API e frontend. O teste de schema com `lazy=True` reúne as violações de uma
+amostra inválida antes do treinamento. [Testes do contrato](tests/teste_dados.py)
+
+## Estrutura do projeto
+
+| Caminho | Conteúdo |
+| --- | --- |
+| [src/churn/](src/churn/) | Validação, treinamento, avaliação e exportação |
+| [src/churn/api/](src/churn/api/) | API de inferência e consulta ao PostgreSQL |
+| [src/churn/frontend/](src/churn/frontend/) | Interface de consulta em Streamlit |
+| [deploy/](deploy/) | Configuração do Nginx, renovação TLS e SQL do PostgreSQL |
+| [scripts/](scripts/) | Empacotamento, deploy e verificação |
+| [docs/](docs/) | Guia de operação na EC2 |
+| [tests/](tests/) | Testes automatizados |
+| [train_churn.py](train_churn.py) | Script inicial do projeto |
+
+## Licença
+
+[MIT](LICENSE).
