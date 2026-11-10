@@ -1,0 +1,6 @@
+FROM postgres:17.11-alpine
+
+ENV POSTGRES_DB=churn
+
+COPY --chmod=0444 data/raw/churn.csv /docker-entrypoint-initdb.d/churn.csv
+COPY --chmod=0444 deploy/postgres/iniciar.sql /docker-entrypoint-initdb.d/10-clientes.sql

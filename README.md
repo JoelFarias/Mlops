@@ -285,3 +285,37 @@ docker run --rm --mount "type=bind,source=$($PWD.Path)\data,target=/aplicacao/da
 ```
 
 O comando executa o mesmo módulo `churn.treinar` dentro do contêiner.
+
+## Imagem Docker do PostgreSQL
+
+A imagem `churn-postgres:1.0` inclui o CSV de exemplo e importa seus registros
+para `public.clientes` no banco `churn` na primeira inicialização com um volume
+vazio. O campo `"customerID"` é a chave primária.
+
+Com `data/raw/churn.csv` na raiz do projeto, construa e exporte a imagem para
+Linux x86-64.
+
+```powershell
+docker build --platform linux/amd64 -f Dockerfile.postgres -t churn-postgres:1.0 .
+New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+docker save -o artifacts/postgres-churn.tar churn-postgres:1.0
+```
+
+Para usar o arquivo em outro Docker, carregue a imagem e inicie o contêiner.
+A senha é definida em tempo de execução e o volume preserva o banco entre
+execuções.
+
+```powershell
+docker load -i artifacts/postgres-churn.tar
+$env:POSTGRES_PASSWORD = [guid]::NewGuid().ToString('N')
+docker run -d --name churn-postgres --env POSTGRES_PASSWORD `
+  --mount type=volume,source=churn-postgres-dados,target=/var/lib/postgresql/data `
+  churn-postgres:1.0
+Remove-Item Env:POSTGRES_PASSWORD
+```
+
+Depois que o PostgreSQL estiver pronto, consulte a tabela pelo próprio contêiner.
+
+```powershell
+docker exec churn-postgres psql -U postgres -d churn -c 'SELECT count(*) FROM public.clientes;'
+```
