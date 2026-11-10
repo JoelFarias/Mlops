@@ -1,0 +1,18 @@
+# Aplicação na primeira EC2, PostgreSQL acessível pela rede privada.
+services:
+  backend:
+    environment:
+      POSTGRES_CLIENTES_DSN_ARQUIVO: /run/secrets/postgres_dsn
+    secrets:
+      - postgres_dsn
+      - postgres_ca
+  frontend:
+    environment:
+      CHURN_CLIENTES_VIA_API: "true"
+    volumes: !reset []
+
+secrets:
+  postgres_dsn:
+    file: ${CHURN_POSTGRES_DSN_ARQUIVO:-../../secrets/postgres-dsn}
+  postgres_ca:
+    file: ${CHURN_POSTGRES_CA_ARQUIVO:-../../secrets/postgres-ca.crt}

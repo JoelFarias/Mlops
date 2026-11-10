@@ -6,11 +6,15 @@ param(
     [string]$Usuario = 'ubuntu',
     [string]$Chave,
     [switch]$Publico,
+    [switch]$Postgres,
     [switch]$SomentePacote
 )
 
 $ErrorActionPreference = 'Stop'
 $raizProjeto = Split-Path -Parent $PSScriptRoot
+if ($Postgres -and -not $Publico) {
+    throw 'Use -Postgres junto com -Publico.'
+}
 if (-not $SomentePacote) {
     if (-not $HostEc2 -or -not $Chave) {
         throw 'Informe -HostEc2 e -Chave, ou use -SomentePacote.'
@@ -20,9 +24,14 @@ if (-not $SomentePacote) {
 
 $arquivos = @(
     'Dockerfile.api', '.dockerignore', 'requirements.runtime.txt', 'compose.yaml',
-    'src', '.streamlit/config.toml', 'artifacts/modelo', 'data/raw/churn.csv',
+    'src', '.streamlit/config.toml', 'artifacts/modelo',
     'scripts/iniciar-ec2.sh', 'scripts/verificar-deploy.py'
 )
+if ($Postgres) {
+    $arquivos += 'compose.postgres.yaml'
+} else {
+    $arquivos += 'data/raw/churn.csv'
+}
 if ($Publico) {
     $arquivos += @('compose.publico.yaml', 'deploy',
         'scripts/configurar-https.sh', 'scripts/renovar-https.sh',
@@ -53,10 +62,18 @@ $pastaRemota = "mlops-churn/releases/$idVersao"
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao conectar na EC2 por SSH.' }
 & scp @opcoesSsh $pacote "${destinoSsh}:${pastaRemota}/pacote.tar.gz"
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao enviar o pacote para a EC2.' }
-$argumentosInicio = if ($Publico) { "publico $HostEc2" } else { 'local' }
+$argumentosInicio = if ($Postgres) {
+    "publico-postgres $HostEc2"
+} elseif ($Publico) {
+    "publico $HostEc2"
+} else {
+    'local'
+}
 & ssh @opcoesSsh $destinoSsh "cd $pastaRemota && tar -xzf pacote.tar.gz && bash scripts/iniciar-ec2.sh $argumentosInicio"
 if ($LASTEXITCODE -ne 0) { throw 'Deploy falhou. Consulte a saída acima.' }
-if ($Publico) {
+if ($Postgres) {
+    Write-Output "Aplicacao conectada ao PostgreSQL. Pasta da release: $pastaRemota"
+} elseif ($Publico) {
     & ssh @opcoesSsh $destinoSsh "cd $pastaRemota && bash scripts/configurar-https.sh $HostEc2 preparar"
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao preparar o proxy HTTPS.' }
     Write-Output "Proxy preparado. Pasta da release: $pastaRemota"

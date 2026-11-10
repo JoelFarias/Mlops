@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from urllib.request import Request, urlopen
 
 
@@ -29,6 +30,14 @@ def main() -> None:
         "PaperlessBilling": "Yes", "PaymentMethod": "Electronic check",
         "MonthlyCharges": 70.5, "TotalCharges": 845.5,
     }
+    codigo = None
+    if os.getenv("POSTGRES_CLIENTES_DSN_ARQUIVO"):
+        codigo = "1069-XAIEM"
+        with urlopen(f"{args.api}/clientes?codigo={codigo}", timeout=15) as resposta:
+            cliente = json.load(resposta)
+        assert cliente and cliente.pop("customerID") == codigo, cliente
+        if cliente["TotalCharges"] is None:
+            cliente["TotalCharges"] = 0.0
     requisicao = Request(
         f"{args.api}/prever", data=json.dumps(cliente).encode(),
         headers={"Content-Type": "application/json"}, method="POST",
@@ -40,7 +49,10 @@ def main() -> None:
     assert previsao["churn"] == (
         "Yes" if previsao["probabilidade"] >= previsao["limiar"] else "No"
     ), previsao
-    print(json.dumps({"modelo": modelo, "previsao": previsao}, indent=2))
+    relatorio = {"modelo": modelo, "previsao": previsao}
+    if codigo:
+        relatorio["cliente_postgres"] = codigo
+    print(json.dumps(relatorio, indent=2))
 
 
 if __name__ == "__main__":

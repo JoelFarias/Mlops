@@ -80,6 +80,13 @@ class ClienteChurn(BaseModel):
     )
 
 
+class ClienteConsulta(ClienteChurn):
+    """Campos do cliente usados pela interface e pelo modelo."""
+
+    customerID: str
+    TotalCharges: float | None = Field(default=None, ge=0.0)
+
+
 class PrevisaoChurn(BaseModel):
     """Resposta de uma predição individual."""
 

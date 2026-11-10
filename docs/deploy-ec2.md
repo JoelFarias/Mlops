@@ -14,9 +14,53 @@ da EC2 e Nginx publica somente o frontend por HTTPS. A demonstração não exige
 login. O seletor de URL da API e os controles de recarga não aparecem para o
 visitante; a recarga também retorna 403 no backend desse ambiente.
 
-O banco e os caminhos do MLflow Windows não são necessários na EC2. O CSV do
-frontend é enviado no pacote e montado somente para leitura. A chave SSH, o
-histórico Git, o banco MLflow e os ambientes virtuais ficam fora do pacote.
+O banco e os caminhos do MLflow Windows não são necessários na EC2. No modo
+com CSV, o pacote inclui o arquivo para montagem somente para leitura. A chave
+SSH, o histórico Git, o banco MLflow e os ambientes virtuais ficam fora do pacote.
+
+## PostgreSQL em uma segunda EC2
+
+Na mesma VPC e sub-rede da aplicação, crie uma instância Ubuntu Server 24.04 LTS
+x86-64 com a chave SSH existente. Para a demonstração, use `t3a.micro` e 8 GiB
+gp3. Desabilite o IPv4 público e crie um grupo de segurança que aceite TCP 22
+e 5432 somente do grupo de segurança da EC2 da aplicação.
+
+Acesse a EC2 do banco por SSH com a EC2 da aplicação como `ProxyJump`. Envie
+`artifacts/postgres-churn.tar` e `scripts/iniciar-postgres-ec2.sh` para a EC2
+do banco pelo mesmo salto. Execute o instalador na EC2 privada, substituindo
+os endereços de exemplo.
+
+```bash
+sudo bash iniciar-postgres-ec2.sh postgres-churn.tar 172.31.0.20 172.31.0.10 18765
+```
+
+O último argumento indica a porta de um túnel SOCKS reverso de loopback
+(`ssh -R 127.0.0.1:18765`) durante a instalação do Docker pelo APT. Restrinja
+os destinos do túnel aos repositórios Ubuntu com `PermitRemoteOpen`. Se o
+Docker já estiver instalado, omita a porta. O instalador cria o volume, o
+certificado do servidor e o usuário `churn_leitura`, que pode ler a tabela
+`public.clientes`. O PostgreSQL aceita esse usuário por TLS a partir do IPv4
+privado da EC2 da aplicação.
+
+Na EC2 da aplicação, crie `~/mlops-churn/secrets` com modo `0700`. Copie
+`/etc/churn-postgres/server.crt` da EC2 do banco para
+`~/mlops-churn/secrets/postgres-ca.crt`. Salve a string de conexão em
+`~/mlops-churn/secrets/postgres-dsn`, usando a senha de leitura de
+`/etc/churn-postgres/leitura-senha`. Defina modo `0444` nos dois arquivos para
+que o usuário do contêiner consiga ler as montagens dentro do diretório privado.
+
+```text
+host=172.31.0.20 port=5432 dbname=churn user=churn_leitura password=<senha> sslmode=verify-full sslrootcert=/run/secrets/postgres_ca
+```
+
+Com o HTTPS da aplicação já configurado, acrescente `-Postgres` ao comando
+`scripts/deploy-ec2.ps1 -Publico`. O deploy verifica o banco antes de
+atualizar os contêineres e testa a previsão com um registro consultado pelo
+FastAPI. O PostgreSQL fornece os dados usados na previsão e o modelo continua
+empacotado na imagem compartilhada pelo frontend e pelo backend.
+
+[Grupos de segurança da AWS](https://docs.aws.amazon.com/vpc/latest/userguide/security-group-rules.html)
+· [Validação TLS do PostgreSQL](https://www.postgresql.org/docs/17/libpq-ssl.html)
 
 ## 1. Criar a instância
 

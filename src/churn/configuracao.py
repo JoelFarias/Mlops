@@ -21,3 +21,4 @@ class Configuracao(BaseSettings):
     modelo_uri: str | None = None
     recarga_modelo_habilitada: bool = True
     limiar_churn: float = Field(default=0.5, ge=0.0, le=1.0)
+    postgres_clientes_dsn_arquivo: Path | None = None

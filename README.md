@@ -319,3 +319,5 @@ Depois que o PostgreSQL estiver pronto, consulte a tabela pelo próprio contêin
 ```powershell
 docker exec churn-postgres psql -U postgres -d churn -c 'SELECT count(*) FROM public.clientes;'
 ```
+
+[Conectar a aplicação ao PostgreSQL em uma segunda EC2](docs/deploy-ec2.md#postgresql-em-uma-segunda-ec2)

@@ -9,12 +9,16 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
+from psycopg import Error as ErroPostgres
 
+from churn.api.clientes import buscar_cliente_postgres
 from churn.api.esquemas import (
     ClienteChurn,
+    ClienteConsulta,
     InfoModelo,
     PrevisaoChurn,
     SaudeResposta,
@@ -107,6 +111,26 @@ def pronto(
     return SaudeResposta(
         status="ok", modelo_carregado=True, origem=servico.origem
     )
+
+
+@app.get("/clientes", response_model=ClienteConsulta | None, tags=["Inferência"])
+def consultar_cliente(
+    codigo: Annotated[str, Query(min_length=1, max_length=64)],
+) -> ClienteConsulta | None:
+    """Busca um cliente pelo código para a inferência online."""
+    caminho_dsn = Configuracao().postgres_clientes_dsn_arquivo
+    indisponivel = "Dados da demonstração temporariamente indisponíveis."
+    if caminho_dsn is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, indisponivel)
+    try:
+        cliente = buscar_cliente_postgres(caminho_dsn, codigo)
+    except (OSError, ErroPostgres) as erro:
+        logger.warning("Falha na consulta de cliente (%s)", type(erro).__name__)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, indisponivel) from None
+    if cliente is None:
+        return None
+    cliente["customerID"] = cliente["customerID"].strip()
+    return ClienteConsulta.model_validate(cliente)
 
 
 @app.post(

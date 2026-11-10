@@ -7,8 +7,8 @@ O frontend tem dois modos:
 * **API FastAPI**: o frontend envia os dados para ``POST /prever`` e recebe a
   predição pronta.
 
-Em ambos os casos a consulta é online: o cliente é buscado no CSV pelo
-``customerID`` e a predição é feita no momento do clique.
+A predição é feita no momento do clique. A busca por ``customerID`` usa
+o CSV local ou a API, conforme a configuração da aplicação.
 
 Executar na raiz do projeto:
 
@@ -54,6 +54,7 @@ EXEMPLOS = ("1069-XAIEM", "7590-VHVEG", "0902-XKXPN")
 MODO_LOCAL = "Modelo local (Streamlit)"
 MODO_API = "API FastAPI"
 MODO_PUBLICO = os.getenv("CHURN_MODO_PUBLICO", "false").lower() in {"true", "1"}
+CLIENTES_VIA_API = os.getenv("CHURN_CLIENTES_VIA_API", "false").lower() in {"true", "1"}
 logger = logging.getLogger(__name__)
 
 st.set_page_config(
@@ -113,6 +114,16 @@ def consultar_saude(api_url: str) -> tuple[dict[str, Any] | None, str | None]:
 
 def consultar_modelo(api_url: str) -> tuple[dict[str, Any] | None, str | None]:
     return _requisicao("GET", f"{api_url}/modelo", timeout=5.0)
+
+
+def consultar_cliente_api(
+    api_url: str, codigo: str
+) -> tuple[pd.Series | None, str | None]:
+    resposta, erro = _requisicao("GET", f"{api_url}/clientes", params={"codigo": codigo})
+    if MODO_PUBLICO and erro:
+        logger.warning("Falha na busca pública de cliente: %s", erro)
+        return None, "Dados da demonstração temporariamente indisponíveis."
+    return (pd.Series(resposta) if resposta is not None else None), erro
 
 
 def recarregar_modelo(api_url: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -326,20 +337,22 @@ st.caption(
     "na hora, no modo escolhido na barra lateral."
 )
 
-caminho_dados = Configuracao().caminho_dados
-try:
-    dados = _carregar_dados(str(caminho_dados))
-except (FileNotFoundError, ValueError) as erro:
-    if MODO_PUBLICO:
-        logger.warning("Dados indisponíveis: %s", erro)
-        st.error("Dados da demonstração temporariamente indisponíveis.")
-    else:
-        st.error(str(erro))
-        st.info(
-            "O frontend usa `data/raw/churn.csv` para buscar o cliente pelo "
-            "código. Baixe o dataset e coloque-o nesse caminho."
-        )
-    st.stop()
+dados = None
+if not CLIENTES_VIA_API:
+    caminho_dados = Configuracao().caminho_dados
+    try:
+        dados = _carregar_dados(str(caminho_dados))
+    except (FileNotFoundError, ValueError) as erro:
+        if MODO_PUBLICO:
+            logger.warning("Dados indisponíveis: %s", erro)
+            st.error("Dados da demonstração temporariamente indisponíveis.")
+        else:
+            st.error(str(erro))
+            st.info(
+                "O frontend usa `data/raw/churn.csv` para buscar o cliente pelo "
+                "código. Baixe o dataset e coloque-o nesse caminho."
+            )
+        st.stop()
 
 with st.container(border=True):
     st.subheader("Consulta por código")
@@ -369,8 +382,14 @@ if consultar:
             "erro": "Informe o código do cliente."
         }
     else:
-        cliente = buscar_cliente(dados, codigo_limpo)
-        if cliente is None:
+        cliente, erro = (
+            consultar_cliente_api(api_url, codigo_limpo)
+            if dados is None
+            else (buscar_cliente(dados, codigo_limpo), None)
+        )
+        if erro:
+            st.session_state.consulta = {"erro": erro}
+        elif cliente is None:
             st.session_state.consulta = {
                 "erro": (
                     f"Código `{codigo_limpo}` não encontrado no dataset. "
