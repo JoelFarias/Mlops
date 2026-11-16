@@ -6,7 +6,8 @@ MLflow e inferência online com FastAPI e Streamlit.
 
 **[Abrir a demonstração pública](https://3.148.175.181/)**
 
-Busque pelo código `1069-XAIEM` ou `0902-XKXPN` e clique em **Buscar e prever**.
+Os exemplos e resultados abaixo usam o CSV da disciplina. A demonstração
+publicada pode estar em uma versão diferente.
 
 [Arquitetura](#arquitetura) · [Executar localmente](#executar-localmente) ·
 [Treinamento e MLflow](#treinamento-e-mlflow) · [API](#api) ·
@@ -38,28 +39,29 @@ O Compose local monta o CSV no frontend para a busca por código. O overlay
 
 ## Executar localmente
 
-Use Python 3.12, Git e Docker com Compose v2. Abra o PowerShell para clonar
-o projeto e executar os comandos.
+Use Python 3.12 e Docker com Compose v2. Abra o PowerShell na pasta clonada
+ou extraída do ZIP.
 
 ### 1. Preparar o ambiente e o dataset
+
+O [CSV original fornecido pelo professor](data/raw/churn.csv) tem 7.043 registros
+e já vem com o projeto, tanto no clone quanto no **Download ZIP**. Não há
+download separado de dados.
+
+Se ainda não baixou o projeto e prefere usar Git:
 
 ```powershell
 git clone https://github.com/JoelFarias/Mlops.git
 cd Mlops
+```
 
+Na raiz do projeto, prepare o ambiente:
+
+```powershell
 py -3.12 -m venv .venv
 $churnPython = ".\.venv\Scripts\python.exe"
 & $churnPython -m pip install -r requirements.txt
 $env:PYTHONPATH = "src"
-```
-
-Em um clone novo, baixe o CSV com 7.043 registros para `data/raw/churn.csv`.
-[Dataset Telco Customer Churn da IBM](https://github.com/IBM/telco-customer-churn-on-icp4d/blob/d5371f5d83a446ad5673cbcca3b814b926491f8a/data/Telco-Customer-Churn.csv)
-
-```powershell
-New-Item -ItemType Directory -Path data/raw -Force | Out-Null
-$churnDataset = "https://raw.githubusercontent.com/IBM/telco-customer-churn-on-icp4d/d5371f5d83a446ad5673cbcca3b814b926491f8a/data/Telco-Customer-Churn.csv"
-Invoke-WebRequest -Uri $churnDataset -OutFile data/raw/churn.csv
 ```
 
 ### 2. Treinar, exportar e iniciar a aplicação
@@ -71,7 +73,8 @@ docker compose build backend
 docker compose up -d --no-build --pull never --wait --wait-timeout 180
 ```
 
-Consulte um cliente no Streamlit ou teste as rotas no Swagger.
+No Streamlit local, consulte `8888-XEBO` ou `9465-LQYV` e clique em
+**Buscar e prever**. Você também pode testar as rotas no Swagger.
 [Streamlit local](http://127.0.0.1:8501/) · [Swagger local](http://127.0.0.1:8000/docs)
 
 Verifique a prontidão do modelo e execute uma previsão de teste.
@@ -123,7 +126,10 @@ API usa `http://127.0.0.1:8000` por padrão.
    da aplicação. Para exportar outra versão, indique uma pasta nova com
    `--destino`.
 
-O experimento que registrou `churn/1` obteve ROC AUC de **0,8425** no teste.
+Com o CSV da disciplina, a configuração selecionada teve **500 árvores** e
+**profundidade máxima 8**. No teste, obteve **ROC AUC de 0,8269** e
+**acurácia de 77,22%**.
+
 O MLflow usa `mlflow.db` para Tracking e Registry. Os runs registram os
 parâmetros, as métricas, o hash do CSV e o commit Git. Abra a interface e
 selecione o experimento `churn-tuning`.
@@ -146,7 +152,7 @@ a `probabilidade` e o `limiar` de decisão. O limiar padrão de inferência é
 | `GET /saude` | Estado do processo e do modelo |
 | `GET /pronto` | Retorna 200 quando o modelo está carregado |
 | `GET /modelo` | Origem, versão e alias do modelo em uso |
-| `GET /clientes?codigo=1069-XAIEM` | Consulta por código com PostgreSQL configurado |
+| `GET /clientes?codigo=8888-XEBO` | Consulta por código com PostgreSQL carregado com o CSV da disciplina |
 | `POST /prever` | Calcula a probabilidade de churn |
 | `POST /modelo/recarregar` | Recarrega o modelo quando a operação está habilitada |
 
@@ -210,6 +216,7 @@ amostra inválida antes do treinamento. [Testes do contrato](tests/teste_dados.p
 | [src/churn/](src/churn/) | Validação, treinamento, avaliação e exportação |
 | [src/churn/api/](src/churn/api/) | API de inferência e consulta ao PostgreSQL |
 | [src/churn/frontend/](src/churn/frontend/) | Interface de consulta em Streamlit |
+| [data/raw/churn.csv](data/raw/churn.csv) | Base didática original da disciplina |
 | [deploy/](deploy/) | Configuração do Nginx, renovação TLS e SQL do PostgreSQL |
 | [scripts/](scripts/) | Empacotamento, deploy e verificação |
 | [docs/](docs/) | Guia de operação na EC2 |
@@ -218,4 +225,4 @@ amostra inválida antes do treinamento. [Testes do contrato](tests/teste_dados.p
 
 ## Licença
 
-[MIT](LICENSE).
+Código: [MIT](LICENSE). A base didática é a fornecida na disciplina.

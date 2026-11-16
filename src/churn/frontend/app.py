@@ -49,8 +49,7 @@ from churn.frontend.inferencia import (
 )
 
 API_PADRAO = os.getenv("CHURN_API_URL", "http://127.0.0.1:8000")
-CODIGO_PADRAO = "1069-XAIEM"
-EXEMPLOS = ("1069-XAIEM", "7590-VHVEG", "0902-XKXPN")
+EXEMPLOS = ("8888-XEBO", "9465-LQYV")
 MODO_LOCAL = "Modelo local (Streamlit)"
 MODO_API = "API FastAPI"
 MODO_PUBLICO = os.getenv("CHURN_MODO_PUBLICO", "false").lower() in {"true", "1"}
@@ -350,7 +349,7 @@ if not CLIENTES_VIA_API:
             st.error(str(erro))
             st.info(
                 "O frontend usa `data/raw/churn.csv` para buscar o cliente pelo "
-                "código. Baixe o dataset e coloque-o nesse caminho."
+                "código. A base da disciplina acompanha o repositório."
             )
         st.stop()
 
@@ -359,10 +358,10 @@ with st.container(border=True):
     with st.form("form_consulta"):
         codigo = st.text_input(
             "Código do cliente (`customerID`)",
-            value=CODIGO_PADRAO,
+            value=EXEMPLOS[0],
             key="codigo_cliente",
             max_chars=64,
-            placeholder="Ex.: 7590-VHVEG",
+            placeholder=f"Ex.: {EXEMPLOS[1]}",
             help="O código é a coluna customerID do CSV do Telco Churn.",
         )
         consultar = st.form_submit_button(

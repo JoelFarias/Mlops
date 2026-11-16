@@ -32,7 +32,7 @@ def main() -> None:
     }
     codigo = None
     if os.getenv("POSTGRES_CLIENTES_DSN_ARQUIVO"):
-        codigo = "1069-XAIEM"
+        codigo = "8888-XEBO"
         with urlopen(f"{args.api}/clientes?codigo={codigo}", timeout=15) as resposta:
             cliente = json.load(resposta)
         assert cliente and cliente.pop("customerID") == codigo, cliente

@@ -15,7 +15,7 @@ login. O seletor de URL da API e os controles de recarga não aparecem para o
 visitante; a recarga também retorna 403 no backend desse ambiente.
 
 O banco e os caminhos do MLflow Windows não são necessários na EC2. No modo
-com CSV, o pacote inclui o arquivo para montagem somente para leitura. A chave
+com CSV, o pacote monta a base da disciplina somente para leitura. A chave
 SSH, o histórico Git, o banco MLflow e os ambientes virtuais ficam fora do pacote.
 
 ## PostgreSQL em uma segunda EC2
@@ -29,6 +29,11 @@ Acesse a EC2 do banco por SSH com a EC2 da aplicação como `ProxyJump`. Envie
 `artifacts/postgres-churn.tar` e `scripts/iniciar-postgres-ec2.sh` para a EC2
 do banco pelo mesmo salto. Execute o instalador na EC2 privada, substituindo
 os endereços de exemplo.
+
+Use a imagem do PostgreSQL construída com `data/raw/churn.csv` da disciplina.
+O SQL importa o CSV na inicialização de um volume novo; reconstruir a imagem
+ou reiniciar o contêiner não atualiza registros de um volume existente. Antes de
+publicar, confirme que o banco e o modelo exportado usam a mesma base.
 
 ```bash
 sudo bash iniciar-postgres-ec2.sh postgres-churn.tar 172.31.0.20 172.31.0.10 18765
@@ -101,7 +106,8 @@ docker compose exec -T backend python scripts/verificar-deploy.py
 Execute a exportação apenas se `artifacts/modelo` ainda não existir. O arquivo
 `artifacts/modelo/deploy.json` identifica a versão incluída na imagem.
 O modelo precisa ter sido promovido pelo treinamento; o exportador não
-promove nem retreina modelos.
+promove nem retreina modelos. Use `python -m churn.experimentos` com o CSV
+da disciplina para gerar a versão a exportar.
 
 ## 3. Publicar do Windows
 
@@ -158,7 +164,7 @@ Referências da instalação:
 ## 4. Acessar e operar
 
 Abra `https://IP-PUBLICO` de qualquer rede. A demonstração pública não exige login.
-Exemplos de clientes: `1069-XAIEM`, `7590-VHVEG` e `0902-XKXPN`.
+Em uma implantação com a base da disciplina, use `8888-XEBO` e `9465-LQYV`.
 
 Na EC2, entre na pasta da release para consultar os serviços:
 
@@ -191,8 +197,9 @@ não substituem proteção contra DDoS volumétrico.
 
 Use somente dados apropriados para divulgação pública. Se o IP da EC2 mudar
 após parar/iniciar a instância, atualize o endereço no deploy e emita um novo
-certificado. A chave `.pem`, o CSV, os modelos, `.env` e certificados não devem
-ser enviados ao Git. A renovação pode ser testada com Certbot `renew --dry-run`.
+certificado. A base didática é o único CSV previsto no Git. Mantenha outros
+dados, modelos, chaves `.pem`, `.env` e certificados fora do repositório.
+A renovação pode ser testada com Certbot `renew --dry-run`.
 
 Referências: [certificados de IP no Certbot](https://letsencrypt.org/2026/03/11/shorter-certs-certbot),
 [limite de requisições do Nginx](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html).

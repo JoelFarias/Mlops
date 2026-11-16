@@ -68,14 +68,13 @@ TRADUCOES = {
 def carregar_clientes(caminho: str | Path | None = None) -> pd.DataFrame:
     """Carrega o CSV de clientes e normaliza a coluna ``customerID``.
 
-    O arquivo não é versionado no Git. Quando ele não existe, o frontend mostra
-    uma mensagem explicando como obtê-lo; por isso a exceção é explícita.
+    Por padrão usa a base da disciplina que acompanha o repositório.
     """
     caminho_dados = Path(caminho) if caminho else Configuracao().caminho_dados
     if not caminho_dados.is_file():
         raise FileNotFoundError(
             f"Dataset não encontrado em {caminho_dados}. "
-            "Coloque o CSV em data/raw/churn.csv."
+            "Verifique se o CSV da disciplina está presente."
         )
 
     dados = pd.read_csv(caminho_dados, na_values=[" "])

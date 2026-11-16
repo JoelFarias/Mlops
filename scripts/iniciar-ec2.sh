@@ -64,8 +64,8 @@ from churn.api.clientes import buscar_cliente_postgres
 from churn.configuracao import Configuracao
 
 caminho = Configuracao().postgres_clientes_dsn_arquivo
-if buscar_cliente_postgres(caminho, "1069-XAIEM") is None:
-    raise SystemExit("Cliente de exemplo ausente no PostgreSQL.")
+if buscar_cliente_postgres(caminho, "8888-XEBO") is None:
+    raise SystemExit("Cliente de exemplo da base da disciplina ausente no PostgreSQL.")
 PY
 fi
 

@@ -3,7 +3,13 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+# Versiona somente o CSV fornecido na disciplina.
 data/
+!/data/
+/data/*
+!/data/raw/
+/data/raw/*
+!/data/raw/churn.csv
 *.pkl
 .env
 mlflow.db*
