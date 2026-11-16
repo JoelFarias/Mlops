@@ -9,7 +9,6 @@ RAIZ_PROJETO = Path(__file__).resolve().parents[2]
 
 class Configuracao(BaseSettings):
     caminho_dados: Path = RAIZ_PROJETO / "data" / "raw" / "churn.csv"
-    caminho_modelo: Path = RAIZ_PROJETO / "modelo_final_v3_ok.pkl"
 
     # Usados pela API: o mesmo backend atende Tracking e Registry.
     mlflow_tracking_uri: str = (

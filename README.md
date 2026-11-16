@@ -11,7 +11,8 @@ publicada pode estar em uma versão diferente.
 
 [Arquitetura](#arquitetura) · [Executar localmente](#executar-localmente) ·
 [Treinamento e MLflow](#treinamento-e-mlflow) · [API](#api) ·
-[Deploy na AWS](#deploy-na-aws) · [Testes](#testes)
+[Deploy na AWS](#deploy-na-aws) · [Testes](#testes) ·
+[Guia técnico](docs/guia-tecnico.md)
 
 ## Arquitetura
 
@@ -138,7 +139,8 @@ selecione o experimento `churn-tuning`.
 .\.venv\Scripts\mlflow.exe ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-[Interface local do MLflow](http://127.0.0.1:5000/) · [Guia de MLflow](mlflow_guia.md)
+[Interface local do MLflow](http://127.0.0.1:5000/) ·
+[Explicação do fluxo de MLflow](docs/guia-tecnico.md#3-treinamento-registro-e-exportação)
 
 ## API
 
@@ -221,7 +223,11 @@ amostra inválida antes do treinamento. [Testes do contrato](tests/teste_dados.p
 | [scripts/](scripts/) | Empacotamento, deploy e verificação |
 | [docs/](docs/) | Guia de operação na EC2 |
 | [tests/](tests/) | Testes automatizados |
-| [train_churn.py](train_churn.py) | Script inicial do projeto |
+
+O código antigo foi preservado em [legado/](legado/README.md), fora do
+pacote Python, dos testes padrão e do build Docker. Os slides e guias da aula
+ficam em [docs/material-disciplina/](docs/material-disciplina/README.md).
+O [guia técnico](docs/guia-tecnico.md) descreve somente o fluxo mantido.
 
 ## Licença
 

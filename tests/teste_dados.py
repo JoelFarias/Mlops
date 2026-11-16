@@ -16,7 +16,7 @@ def teste_carregar_dados_le_arquivo_csv(tmp_path):
     ]
 
 
-def teste_limpar_dados_preserva_regras_do_script_original():
+def teste_limpar_dados_converte_cobranca_e_valida_contrato():
     import pandas as pd
 
     from churn.dados import limpar_dados
@@ -67,24 +67,3 @@ def teste_schema_coleta_todas_as_falhas_com_lazy_true():
         "Contract",
         "Churn",
     }
-
-
-def teste_remover_nulos_e_codificar_preserva_ordem_original():
-    import pandas as pd
-
-    from churn.dados import remover_nulos_e_codificar
-
-    dados = pd.DataFrame(
-        {
-            "servico": ["B", "A", None],
-            "Churn": ["No", "Yes", "No"],
-            "numero": [1.0, 2.0, None],
-        }
-    )
-
-    resultado = remover_nulos_e_codificar(dados)
-
-    assert len(resultado) == 2
-    assert resultado["servico"].tolist() == [1, 0]
-    assert resultado["Churn"].tolist() == [0, 1]
-    assert resultado.isna().sum().sum() == 0
