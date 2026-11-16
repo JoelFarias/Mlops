@@ -140,7 +140,7 @@ selecione o experimento `churn-tuning`.
 ```
 
 [Interface local do MLflow](http://127.0.0.1:5000/) ·
-[Explicação do fluxo de MLflow](docs/guia-tecnico.md#3-treinamento-registro-e-exportação)
+[Explicação do fluxo de MLflow](docs/guia-tecnico.md#treinamento-e-mlflow)
 
 ## API
 
