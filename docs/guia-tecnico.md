@@ -39,6 +39,36 @@ requirements.txt
 ```
 
 
+## Tabela para explicar cada parte
+
+Esta é a versão resumida para acompanhar a árvore do GitHub. Cada linha explica a responsabilidade da parte, sem apresentar a preparação da base do professor como trabalho do projeto.
+
+| Pasta ou arquivo | O que é | Como aparece neste projeto |
+| --- | --- | --- |
+| `.streamlit/` | Guarda as configurações de aparência da interface feita com Streamlit, a ferramenta que cria a tela a partir de Python. | Define cores, fonte e alguns controles visuais. Mudar essa pasta altera a apresentação, sem mudar o cálculo do risco. |
+| `data/` | Guarda a base de clientes usada pelo projeto. O CSV original já foi fornecido preparado pelo professor e acompanha o repositório. | O treino usa os exemplos e suas respostas conhecidas; a consulta local usa o código para localizar os atributos de um cliente. |
+| `deploy/` | Reúne as configurações da instalação no servidor: acesso seguro ao site, estrutura inicial do banco e renovação do certificado. | Descreve como o visitante chega à interface e como o banco recebe os clientes. Os scripts aplicam essas configurações. |
+| `docs/` | Reúne as instruções escritas para entender, executar e publicar o projeto, incluindo este guia. | Serve como material de estudo e manual de operação. Os documentos orientam uma execução, mas não executam a aplicação por si mesmos. |
+| `legado/` | Preserva versões anteriores, separadas do código utilizado hoje. | Permite consultar a evolução do projeto. Esses arquivos ficaram fora do pacote ativo, dos testes padrão e do build da aplicação. |
+| `scripts/` | Contém procedimentos que automatizam tarefas que poderiam ser feitas manualmente por comandos. | Prepara servidores, envia a aplicação, inicia os serviços e verifica uma previsão. O procedimento atual de publicação recebe o modelo já treinado. |
+| `src/churn/` | É o código principal do projeto: experimentação, exportação do modelo, serviço de previsão e interface. | Aqui estão as regras que fazem o projeto funcionar. A API calcula a previsão, a tela apresenta o resultado e os módulos de treino escolhem o modelo. |
+| `tests/` | Contém cenários automatizados que conferem se cada parte responde como esperado. | Verifica, por exemplo, entrada inválida, modelo indisponível, consulta de cliente e seleção da versão. Isso ajuda a detectar erros antes de publicar. |
+| `.dockerignore` | Define o que deve ficar fora do conjunto de arquivos enviado ao Docker ao construir a imagem da aplicação. | Evita levar ambientes locais, caches e material de apoio. O modelo exportado é uma exceção, porque precisa acompanhar a aplicação. |
+| `.gitattributes` | Define como o Git trata alguns arquivos ao armazená-los e disponibilizá-los em outro computador. | Padroniza as quebras de linha dos scripts e preserva os bytes do CSV, mantendo a identidade da base entre Windows e Linux. |
+| `.gitignore` | Define quais arquivos locais ainda não rastreados não devem entrar no histórico do projeto. | Mantém ambientes, caches, modelos gerados e configurações locais fora do Git. O CSV do professor é uma exceção explícita e vem no download. |
+| `Dockerfile.api` | É a receita para montar o ambiente da aplicação, incluindo Python, dependências, código e uma versão exportada do modelo. | Produz o pacote usado pela API e pelo Streamlit. Eles usam a mesma imagem, mas executam comandos diferentes em dois contêineres. |
+| `Dockerfile.postgres` | É a receita separada do banco de clientes, com PostgreSQL, CSV e instruções de carga inicial. | Em um armazenamento novo, cria e preenche a tabela de clientes. Não treina nem armazena o modelo usado pela aplicação. |
+| `Dockerfile.postgres.dockerignore` | Seleciona os arquivos necessários especificamente para construir a imagem do banco. | Permite incluir o CSV e o SQL. O banco precisa desses arquivos; a imagem da aplicação precisa de outros, como o modelo exportado. |
+| `LICENSE` | É o documento com os termos declarados para uso do código. | Registra a licença MIT do código. Não participa do treinamento, da previsão ou da instalação dos serviços. |
+| `Makefile` | Agrupa comandos de desenvolvimento sob nomes curtos. | O comando make tarefa é um atalho para executar os testes. O comando Python equivalente também pode ser usado diretamente. |
+| `README.md` | É a apresentação principal do repositório: explica o objetivo e mostra por onde começar. | Tem os comandos de execução, a arquitetura, os resultados e os links para os guias. A pessoa começa por ele para rodar o projeto. |
+| `compose.postgres.yaml` | Complementa a configuração de execução para usar o banco privado como origem dos clientes. | Retira a leitura direta do CSV na interface e configura a API para buscar os atributos no PostgreSQL. |
+| `compose.publico.yaml` | Complementa a execução com as escolhas próprias da demonstração pública. | Limita recursos e esconde/bloqueia controles administrativos, como recarga do modelo. O acesso seguro pelo navegador é preparado com Nginx. |
+| `compose.yaml` | Define como as partes da aplicação são iniciadas e conectadas, usando o pacote preparado pelo Dockerfile. | Inicia API e Streamlit, configura portas e espera o modelo ficar pronto. Na execução local, também monta o CSV para consulta. |
+| `pyproject.toml` | Descreve o projeto Python e configura as ferramentas de desenvolvimento. | Define metadados, a versão de Python esperada e como encontrar os módulos e coletar os testes ativos. |
+| `requirements.runtime.txt` | Lista as dependências e versões necessárias para executar a aplicação que já tem um modelo treinado. | É a lista instalada na imagem da API e do Streamlit. Atende à consulta e à previsão, sem instalar todo o conjunto de ferramentas de treino. |
+| `requirements.txt` | Lista as dependências do ambiente completo de desenvolvimento, treinamento e testes. | É usada por quem vai rodar os experimentos, registrar versões e testar o código. Essas bibliotecas vão além das necessárias para servir uma previsão. |
+
 ## Como estudar o guia
 
 Em cada arquivo, abra o bloco **“Entenda os termos e as perguntas”** antes de
